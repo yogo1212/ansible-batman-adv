@@ -1,0 +1,4 @@
+---
+batman_mirror: "https://downloads.open-mesh.org/batman/releases/"
+build_dir: "build/batman-adv"
+# batman_version: 2020.1

@@ -1,0 +1,44 @@
+---
+- block:
+  - name: discover the latest version
+    shell:
+      curl https://api.github.com/repos/open-mesh-mirror/batman-adv/git/refs/tags/ 2>/dev/null | egrep 'ref.*refs/tags/v([0-9.]+)",' | egrep -o "[0-9.]+" | sort -V | tail -n 1
+    register: latest_release
+    changed_when: false
+
+  - name: setting version from latest release
+    set_fact:
+      batman_version: "{{ latest_release.stdout_lines[0] }}"
+  when:
+    - batman_version is not defined
+
+- name: install make, dkms, and kernel-devel
+  become: yes
+  yum: name="{{ items }}" state=latest
+  vars:
+    items:
+    - dkms
+    - kernel-devel
+    - make
+
+# TODO fails if there's more than one version registered with dkms
+- name: detect installed version
+  become: yes
+  shell: dkms status batman-adv | grep -q batman-adv && dkms status batman-adv | cut -f1 -d':' | cut -f2 -d',' | xargs
+  ignore_errors: yes
+  register: current_batman_version
+
+- block:
+  - name: remove old dkms module
+    become: yes
+    shell: dkms remove "batman-adv/{{ current_batman_version.stdout }}" --all
+
+  - name: remove old installation of Go
+    become: yes
+    file:
+      path: "/usr/src/batman-adv-{{ batman_version }}"
+      state: directory
+  when: current_batman_version is not failed and current_batman_version.stdout != batman_version
+
+- include_tasks: install_batman_adv.yml
+  when: current_batman_version is failed or current_batman_version.stdout != batman_version

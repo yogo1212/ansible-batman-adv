@@ -1,0 +1,65 @@
+- name: set name facts
+  set_fact:
+    tar_name: "batman-adv-{{ batman_version }}.tar.gz"
+    dkms_dir: "/usr/src/batman-adv-{{ batman_version }}"
+
+- name: set url facts
+  set_fact:
+    tar_url: "{{ batman_mirror }}batman-adv-{{ batman_version }}/{{ tar_name }}"
+
+- name: download batman-adv tarball
+  get_url:
+    url: "{{ tar_url }}"
+    dest: "/tmp/"
+
+- name: copy signing certificate
+  copy:
+    src: signing_key.pub
+    dest: /tmp/batman.pub
+
+- name: install batman certificate
+  command: gpg --import /tmp/batman.pub
+
+- name: download signature
+  get_url:
+    url: "{{ tar_url }}.asc"
+    dest: "/tmp/"
+
+- name: verify the signature
+  shell: gpg --verify "{{ tar_name }}.asc" "{{ tar_name }}"
+  args:
+    chdir: "/tmp"
+
+- name: install source directory
+  become: yes
+  file:
+    path: "{{ dkms_dir }}"
+    state: directory
+
+- name: extract the source tarball
+  become: yes
+  unarchive:
+    src: "/tmp/{{ tar_name }}"
+    dest: "{{ dkms_dir }}"
+    remote_src: yes
+    extra_opts:
+    - --strip=1
+    # TODO filter="batman-adv-{{ batman_version }}" would be nice
+
+- name: install dkms.conf
+  become: yes
+  template:
+    src: dkms.conf
+    dest: "{{ dkms_dir }}/"
+
+- name: add dkms module
+  become: yes
+  shell: dkms add -m batman-adv -v "{{ batman_version }}"
+
+- name: build dkms module
+  become: yes
+  shell: dkms build -m batman-adv -v "{{ batman_version }}"
+
+- name: install dkms module
+  become: yes
+  shell: dkms install -m batman-adv -v "{{ batman_version }}"
