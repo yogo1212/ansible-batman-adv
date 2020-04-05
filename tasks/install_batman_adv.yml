@@ -48,7 +48,7 @@
 
 - name: install dkms.conf
   become: yes
-  template:
+  copy:
     src: dkms.conf
     dest: "{{ dkms_dir }}/"
 
